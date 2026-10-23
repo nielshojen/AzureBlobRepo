@@ -1,0 +1,22 @@
+name: Build and test AzureBlobRepo Munki plugin
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run unit and end-to-end tests
+        run: ./scripts/run-all-tests.sh
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v4
+        with:
+          name: AzureBlobRepoPlugin
+          path: build/AzureBlobRepoPlugin-*.pkg
