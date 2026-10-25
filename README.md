@@ -6,14 +6,17 @@ It is modeled on [S3Repo](https://github.com/discentem/s3repo), but talks to the
 
 ## Install
 
-Build the package and install it. Building needs Xcode, because the plugin is a universal binary:
+Build the package and install it. The plugin is built for Apple silicon (arm64) only:
 
 ```sh
 ./scripts/build-plugin-package.sh
 sudo installer -pkg build/AzureBlobRepoPlugin-1.0.0.pkg -target /
 ```
 
-This puts `AzureBlobRepo.plugin` into `/usr/local/munki/repoplugins/`.
+The package installs two plugins:
+
+- `/usr/local/munki/repoplugins/AzureBlobRepo.plugin`: the Munki 7 plugin (a dylib), used by the Munki admin tools.
+- `/usr/local/munki/munkilib/munkirepo/AzureBlobRepo.py`: a Python version of the same plugin for AutoPkg's MunkiImporter, which loads only Python repo plugins. It uses the same repo URLs and credentials.
 
 ## Usage
 
@@ -44,6 +47,27 @@ The plugin reads credentials from the environment. The first match wins:
 
 Keep secrets out of the repo URL. Munki stores that URL in its preferences and prints it in output.
 
+### AutoPkg
+
+MunkiImporter loads `AzureBlobRepo.py` from munkilib, which comes from Munki's `munkitools_pythonlibs` package. `MUNKILIB_DIR` defaults to `/usr/local/munki`, so you don't need to set it.
+
+```sh
+defaults write com.github.autopkg MUNKI_REPO "https://<account>.blob.core.windows.net/<container>"
+defaults write com.github.autopkg MUNKI_REPO_PLUGIN AzureBlobRepo
+```
+
+Credentials are not AutoPkg settings. Set the environment variables above in the environment AutoPkg runs in, or run `az login` as the user that runs AutoPkg.
+
+MunkiImporter reads `catalogs/all` before it imports anything, and fails on a new, empty repo with `HTTP 404 BlobNotFound for catalogs/all`. This happens with every repo plugin. Create an empty catalog once:
+
+```sh
+printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><array/></plist>\n' > all.plist
+az storage blob upload --account-name <account> --container-name <container> \
+    --name catalogs/all --file all.plist --auth-mode login
+```
+
+MunkiImporter doesn't rebuild catalogs. Run `makecatalogs --plugin AzureBlobRepo --repo-url <url>` after your AutoPkg run.
+
 ### Notes
 
 - Files over 64 MiB are uploaded in 64 MiB blocks. This keeps memory use low and lifts the 5000 MiB limit of a single upload, so large installers like Xcode work.
@@ -61,6 +85,7 @@ swift test                    # unit tests
 
 - munkiimport, makecatalogs, iconimporter and repoclean, with Shared Key auth and with names that contain spaces.
 - A multi-block upload with SAS auth.
+- The Python plugin: multi-block upload, download, list, put, get and delete. It is skipped if munkilib isn't installed.
 
 GitHub Actions runs the same flow (see [.github/workflows/test.yml](.github/workflows/test.yml)).
 

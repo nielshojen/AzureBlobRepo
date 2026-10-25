@@ -1,6 +1,8 @@
 #!/bin/bash
-# Builds AzureBlobRepo.plugin (universal) and packages it as
-# build/AzureBlobRepoPlugin-<version>.pkg, installing to /usr/local/munki/repoplugins
+# Builds AzureBlobRepo.plugin (arm64) and packages it as
+# build/AzureBlobRepoPlugin-<version>.pkg, installing to /usr/local/munki/repoplugins.
+# The package also installs the Python plugin to /usr/local/munki/munkilib/munkirepo
+# for AutoPkg's MunkiImporter, which loads only Python repo plugins.
 
 set -e
 
@@ -12,7 +14,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "Building AzureBlobRepo plugin..."
-BUILD_ARGS=(-c release --product AzureBlobRepo --arch arm64 --arch x86_64)
+BUILD_ARGS=(-c release --product AzureBlobRepo --arch arm64)
 swift build "${BUILD_ARGS[@]}"
 DYLIB_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/libAzureBlobRepo.dylib"
 
@@ -28,7 +30,10 @@ rm -f build/AzureBlobRepoPlugin*.pkg
 mkdir -p "$PAYLOAD_DIR/usr/local/munki/repoplugins"
 # Munki loads plugins by name: --plugin AzureBlobRepo -> AzureBlobRepo.plugin
 cp "$DYLIB_PATH" "$PAYLOAD_DIR/usr/local/munki/repoplugins/AzureBlobRepo.plugin"
+mkdir -p "$PAYLOAD_DIR/usr/local/munki/munkilib/munkirepo"
+cp munkilib/munkirepo/AzureBlobRepo.py "$PAYLOAD_DIR/usr/local/munki/munkilib/munkirepo/"
 chmod -R 755 "$PAYLOAD_DIR/usr"
+chmod 644 "$PAYLOAD_DIR/usr/local/munki/munkilib/munkirepo/AzureBlobRepo.py"
 
 pkgbuild \
     --root "$PAYLOAD_DIR" \

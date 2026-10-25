@@ -1,7 +1,7 @@
 #!/bin/bash
 # End-to-end test of the AzureBlobRepo plugin against a running Azurite:
 # munkiimport, makecatalogs, iconimporter and repoclean with Shared Key auth,
-# plus a multi-block upload with SAS auth.
+# plus a multi-block upload with SAS auth, and the Python plugin (for AutoPkg).
 #
 # MUNKI_DIR is the directory holding the Munki tools and a repoplugins/
 # directory with AzureBlobRepo.plugin (default: /usr/local/munki).
@@ -99,6 +99,38 @@ munki munkiimport "$BIG_PKG" -n --extract-icon || fail "munkiimport of large pac
 az storage blob download --container-name "$CONTAINER" --name "pkgs/BigApp-2.0.pkg" \
     --file "$WORK_DIR/downloaded.pkg" --connection-string "$CONNECTION_STRING" --output none --only-show-errors
 cmp -s "$BIG_PKG" "$WORK_DIR/downloaded.pkg" || fail "uploaded large package does not match"
+
+echo "=== Python plugin (SAS): multi-block upload, download, list, put, get, delete ==="
+# MUNKILIB_DIR holds munkilib (with munkirepo/AzureBlobRepo.py); default /usr/local/munki
+MUNKILIB_DIR="${MUNKILIB_DIR:-/usr/local/munki}"
+# munkilib itself comes from the munkitools_pythonlibs package, which may be absent
+if [ -f "$MUNKILIB_DIR/munkilib/munkirepo/__init__.py" ] && [ -f "$MUNKILIB_DIR/munkilib/munkirepo/AzureBlobRepo.py" ]; then
+    /usr/bin/python3 -I - "$MUNKILIB_DIR" "$REPO_URL" "$BIG_PKG" "$WORK_DIR/python-downloaded.pkg" <<'PYEOF' || fail "Python plugin test failed"
+import filecmp
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from munkilib import munkirepo
+
+repo_url, big_pkg, downloaded = sys.argv[2:5]
+repo = munkirepo.connect(repo_url, "AzureBlobRepo")
+repo.put_from_local_file("pkgs/Python Big.pkg", big_pkg)
+repo.get_to_local_file("pkgs/Python Big.pkg", downloaded)
+assert filecmp.cmp(big_pkg, downloaded, shallow=False), "downloaded package differs"
+assert "Python Big.pkg" in repo.itemlist("pkgs"), "uploaded package not listed"
+repo.put("manifests/python test", b"<plist/>")
+assert repo.get("manifests/python test") == b"<plist/>", "manifest content differs"
+repo.delete("pkgs/Python Big.pkg")
+repo.delete("manifests/python test")
+try:
+    repo.get("manifests/python test")
+    raise AssertionError("deleted manifest still readable")
+except munkirepo.RepoError:
+    pass
+PYEOF
+else
+    echo "⚠ Skipped: munkilib or AzureBlobRepo.py not found in $MUNKILIB_DIR/munkilib/munkirepo"
+fi
 
 echo ""
 echo "✓ All end-to-end tests passed"
