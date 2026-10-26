@@ -1,0 +1,24 @@
+name: Release AzureBlobRepo Munki plugin
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run unit and end-to-end tests and build the package
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/run-all-tests.sh
+
+      - name: Create release with the package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "build/AzureBlobRepoPlugin-${GITHUB_REF_NAME#v}.pkg" \
+            --title "AzureBlobRepo ${GITHUB_REF_NAME#v}" --generate-notes

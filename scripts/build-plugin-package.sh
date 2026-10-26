@@ -6,12 +6,18 @@
 
 set -e
 
-VERSION="${VERSION:-1.0.0}"
 IDENTIFIER="com.github.nielshojen.azureblobrepo"
-PKG_PATH="build/AzureBlobRepoPlugin-$VERSION.pkg"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
+
+# The release workflow sets VERSION from the pushed v<version> tag; local builds
+# use the latest tag, or 0.0.0-dev before the first one
+if [ -z "$VERSION" ]; then
+    VERSION="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo v0.0.0-dev)"
+    VERSION="${VERSION#v}"
+fi
+PKG_PATH="build/AzureBlobRepoPlugin-$VERSION.pkg"
 
 echo "Building AzureBlobRepo plugin..."
 BUILD_ARGS=(-c release --product AzureBlobRepo --arch arm64)

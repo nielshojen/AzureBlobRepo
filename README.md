@@ -6,12 +6,16 @@ It is modeled on [S3Repo](https://github.com/discentem/s3repo), but talks to the
 
 ## Install
 
-Build the package and install it. The plugin is built for Apple silicon (arm64) only:
+Download `AzureBlobRepoPlugin-<version>.pkg` from [Releases](https://github.com/nielshojen/AzureBlobRepo/releases) and install it. The plugin is built for Apple silicon (arm64) only.
+
+To build the package yourself:
 
 ```sh
 ./scripts/build-plugin-package.sh
-sudo installer -pkg build/AzureBlobRepoPlugin-1.0.0.pkg -target /
+sudo installer -pkg build/AzureBlobRepoPlugin-<version>.pkg -target /
 ```
+
+The package version is the latest `v*` git tag (or `0.0.0-dev` before the first one). Set `VERSION` to override it.
 
 The package installs two plugins:
 
@@ -73,6 +77,17 @@ MunkiImporter doesn't rebuild catalogs. Run `makecatalogs --plugin AzureBlobRepo
 - Files over 64 MiB are uploaded in 64 MiB blocks. This keeps memory use low and lifts the 5000 MiB limit of a single upload, so large installers like Xcode work.
 - `pathFor()` returns `nil`, as the Munki protocol asks of non-filesystem repos. Tools that need a local copy of a pkg (such as iconimporter) download it. makecatalogs' pkg check works without `--skip-pkg-check`.
 - Storage accounts with a hierarchical namespace (ADLS Gen2) are untested.
+
+## Releases
+
+Push a version tag to release:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The [release workflow](.github/workflows/release.yml) runs the tests, builds `AzureBlobRepoPlugin-1.1.0.pkg` and attaches it to a new GitHub release with generated notes.
 
 ## Tests
 
